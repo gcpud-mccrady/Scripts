@@ -20,19 +20,23 @@ function Remove-WSUSSettings {
     Write-Host "Windows Update is now configured to pull from the internet."
 }
 
-# Function to install the PSWindowsUpdate module
-function Install-PSWindowsUpdate {
+# Function to install a module if it is not present
+function Install-ModuleIfNotPresent {
+    param (
+        [string]$moduleName
+    )
+    
     try {
-        if (-not (Get-Module -ListAvailable -Name PSWindowsUpdate)) {
-            Write-Host "PSWindowsUpdate module not found. Installing..."
+        if (-not (Get-Module -ListAvailable -Name $moduleName)) {
+            Write-Host "$moduleName module not found. Installing..."
             Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -ErrorAction Stop
-            Install-Module -Name PSWindowsUpdate -Force -SkipPublisherCheck -ErrorAction Stop
-            Write-Host "PSWindowsUpdate module installed successfully."
+            Install-Module -Name $moduleName -Force -SkipPublisherCheck -ErrorAction Stop
+            Write-Host "$moduleName module installed successfully."
         } else {
-            Write-Host "PSWindowsUpdate module is already installed."
+            Write-Host "$moduleName module is already installed."
         }
     } catch {
-        Write-Host "Failed to install PSWindowsUpdate module. Error: $_"
+        Write-Host "Failed to install $moduleName module. Error: $_"
         exit 1
     }
 }
@@ -40,8 +44,8 @@ function Install-PSWindowsUpdate {
 # Remove WSUS settings
 Remove-WSUSSettings
 
-# Ensure the PSWindowsUpdate module is installed
-Install-PSWindowsUpdate
+# Ensure the necessary modules are installed
+Install-ModuleIfNotPresent -moduleName "PSWindowsUpdate"
 
 # Import the PSWindowsUpdate module
 try {
@@ -55,18 +59,19 @@ try {
 # Check for available updates
 try {
     Write-Host "Checking for updates..."
-    $updates = Get-WindowsUpdate -Verbose
+    $updates = Get-WindowsUpdate -Verbose -ErrorAction Stop
 
-    # If updates are available, download and install them
-    if ($updates.Count -gt 0) {
+    if ($null -eq $updates) {
+        Write-Host "No updates object returned."
+    } elseif ($updates.Count -eq 0) {
+        Write-Host "No updates available."
+    } else {
         Write-Host "Updates found. Downloading and installing updates..."
 
         # Install updates without auto-reboot
-        Install-WindowsUpdate -AcceptAll -Verbose -IgnoreReboot
+        Install-WindowsUpdate -AcceptAll -Verbose -IgnoreReboot -ErrorAction Stop
 
         Write-Host "Updates installed successfully. Please reboot your system manually if necessary."
-    } else {
-        Write-Host "No updates available."
     }
 } catch {
     Write-Host "Failed to check for updates. Error: $_"
